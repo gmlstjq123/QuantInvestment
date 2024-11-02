@@ -28,6 +28,11 @@ public class Account extends BaseTimeEntity {
     @Column(nullable = false)
     private Float deposit; // 예수금
 
-    @OneToOne(mappedBy = "account", cascade = CascadeType.ALL, orphanRemoval = true)
-    private User user; // Account와 일대일 매핑
+    public Account createAccount(String accountNumber, Float assessmentFee, Float purchasePrice, Float deposit) {
+        this.accountNumber = accountNumber;
+        this.assessmentFee = assessmentFee;
+        this.purchasePrice= purchasePrice;
+        this.deposit = deposit;
+        return this;
+    }
 }

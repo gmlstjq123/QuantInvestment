@@ -14,21 +14,33 @@ import lombok.*;
 public class User extends BaseTimeEntity {
     @Column
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    private Long userId; // 고유 식별자
+
+    @Column(nullable = false)
+    private String id; // 로그인 ID
+
+    @Column(nullable = false)
+    private String password;
 
     @Column(nullable = false)
     private String appKey;
 
-    @Column(nullable = false)
+    @Column(nullable = false, columnDefinition = "TEXT")
     private String appSecret;
 
-    @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "account_id")
-    private Account account;
+    @Column(nullable = false, columnDefinition = "TEXT")
+    private String accessToken; // 증권사 Token
 
-    public User createUser(String appKey, String appSecret) {
+    @Column(nullable = false)
+    private String accountNumber; // 계좌번호
+
+    public User createUser(String id, String password, String appKey, String appSecret, String accessToken, String accountNumber) {
+        this.id = id;
+        this.password = password;
         this.appKey= appKey;
         this.appSecret = appSecret;
+        this.accessToken = accessToken;
+        this.accountNumber = accountNumber;
         return this;
     }
 }

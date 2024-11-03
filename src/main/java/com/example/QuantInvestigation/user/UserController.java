@@ -78,4 +78,27 @@ public class UserController {
         }
     }
 
+    /**
+     * 안정성 검증을 위한 테스트 호출 (매수, 매도)
+     */
+    @PostMapping("/buy-order")
+    public BaseResponse<String> buyOrder(@RequestBody BuyOrderReq buyOrderReq){
+        try{
+            Long userId = jwtService.getUserIdx();
+            return new BaseResponse<>(userService.buyOrder(userId, buyOrderReq.getPurchasePrice(), buyOrderReq.getQty()));
+        } catch (BaseException exception) {
+            return new BaseResponse<>(exception.getStatus());
+        }
+    }
+
+    @PostMapping("/sell-order")
+    public BaseResponse<String> sellOrder(@RequestBody SellOrderReq sellOrderReq){
+        try{
+            Long userId = jwtService.getUserIdx();
+            return new BaseResponse<>(userService.sellOrder(userId, sellOrderReq.getSellingPrice(), sellOrderReq.getQty()));
+        } catch (BaseException exception) {
+            return new BaseResponse<>(exception.getStatus());
+        }
+    }
+
 }

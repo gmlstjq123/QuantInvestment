@@ -1,9 +1,12 @@
 package com.example.QuantInvestigation.user;
 
-import com.example.QuantInvestigation.account.Account;
+import com.example.QuantInvestigation.error_log.ErrorLog;
 import com.example.QuantInvestigation.utils.BaseTimeEntity;
 import jakarta.persistence.*;
 import lombok.*;
+
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Builder
@@ -34,6 +37,9 @@ public class User extends BaseTimeEntity {
     @Column(nullable = false)
     private String accountNumber; // 계좌번호
 
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<ErrorLog> errorLogList = new ArrayList<>();
+
     public User createUser(String id, String password, String appKey, String appSecret, String accessToken, String accountNumber) {
         this.id = id;
         this.password = password;
@@ -43,4 +49,5 @@ public class User extends BaseTimeEntity {
         this.accountNumber = accountNumber;
         return this;
     }
+
 }

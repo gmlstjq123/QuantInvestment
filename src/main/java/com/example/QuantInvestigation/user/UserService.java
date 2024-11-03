@@ -1,8 +1,8 @@
 package com.example.QuantInvestigation.user;
 
-import com.example.QuantInvestigation.account.AccountRepository;
-import com.example.QuantInvestigation.chart.dto.GetPeriodPriceRes;
 import com.example.QuantInvestigation.exception.BaseException;
+import com.example.QuantInvestigation.error_log.ErrorLog;
+import com.example.QuantInvestigation.error_log.ErrorLogRepository;
 import com.example.QuantInvestigation.token.JwtProvider;
 import com.example.QuantInvestigation.token.dto.JwtResponseDTO;
 import com.example.QuantInvestigation.user.dto.*;
@@ -15,7 +15,6 @@ import com.google.gson.Gson;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.*;
-import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.LinkedMultiValueMap;
@@ -38,6 +37,7 @@ public class UserService {
     private final UtilService utilService;
     private final JwtProvider jwtProvider;
     private final ObjectMapper objectMapper;
+    private final ErrorLogRepository errorLogRepository;
 
     @Transactional
     public String joinUser(PostJoinReq postJoinReq) throws BaseException {
@@ -167,6 +167,11 @@ public class UserService {
                 System.out.println(userId + "의 액세스 토큰: " + accessToken);
 
             } catch (Exception ignored) {
+                User user = utilService.findByUserIdWithValidation(userId);
+                ErrorLog errorLog = new ErrorLog();
+                errorLog.createHistory("OAuth 토큰 갱신에 실패하였습니다.", user);
+                errorLogRepository.save(errorLog);
+
                 throw new BaseException(INVALID_AUTH_INPUT);
             }
         }
@@ -274,9 +279,34 @@ public class UserService {
                     String.class
             );
 
+            // TODO: output1이 비어있을 때(보유 수량이 0일 때) 또는 종목 수가 2 이상인 경우에 대한 예외처리
+//            String responseBody = responseEntity.getBody();
+//            JsonNode rootNode = objectMapper.readTree(responseBody);
+//            JsonNode outputArray = rootNode.path("output1");
+//            JsonNode targetNode = null;
+//            for (JsonNode node : outputArray) {
+//                if ("TQQQ".equals(node.path("ovrs_pdno").asText())) {
+//                    targetNode = node;
+//                    break;
+//                }
+//            }
+//
+//            if (targetNode != null) {
+//                return new GetItemBalanceRes(
+//                        targetNode.path("ovrs_pdno").asText(),
+//                        Float.parseFloat(targetNode.path("frcr_evlu_pfls_amt").asText()),
+//                        Float.parseFloat(targetNode.path("evlu_pfls_rt").asText()),
+//                        Float.parseFloat(targetNode.path("pchs_avg_pric").asText()),
+//                        Integer.parseInt(targetNode.path("ovrs_cblc_qty").asText()),
+//                        Float.parseFloat(targetNode.path("ovrs_stck_evlu_amt").asText())
+//                );
+//            } else {
+//                return new GetItemBalanceRes("TQQQ", 0F, 0F, 0F, 0, 0F);
+//            }
+
             String responseBody = responseEntity.getBody();
             JsonNode rootNode = objectMapper.readTree(responseBody);
-            JsonNode output1 = rootNode.path("output1").get(0);;
+            JsonNode output1 = rootNode.path("output1").get(0);
             log.info(String.valueOf(output1));
             return new GetItemBalanceRes(
                     output1.path("ovrs_pdno").asText(),
@@ -293,5 +323,157 @@ public class UserService {
         }
     }
 
+    /**
+     * 주식 매수 주문
+     */
+    @Transactional
+    public String buyOrder(Long userId, String purchasePrice, Integer qty) throws BaseException {
+        String accessToken = utilService.findTokenByUserIdWithValidation(userId);
+        String appKey = utilService.findAppKeyByUserIdWithValidation(userId);
+        String appSecret = utilService.findAppSecretByUserIdWithValidation(userId);
+        String accountNumber = utilService.findAccountNumByUserIdWithValidation(userId);
+        String firstPart = accountNumber.substring(0, 8); // 계좌번호 첫 8자리
+        String lastPart = accountNumber.substring(8); // 계좌번호 나머지 2자리
+        String trId = "TTTT1002U";
+
+        RestTemplate restTemplate = new RestTemplate();
+
+        // 헤더 설정
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.add("authorization", "Bearer " + accessToken);
+        headers.add("appkey", appKey);
+        headers.add("appsecret", appSecret);
+        headers.add("tr_id", trId);
+        headers.add("User-Agent", "Mozilla/5.0");
+
+        // 바디 설정 (JSON으로 변환)
+        Map<String, Object> body = new HashMap<>();
+        body.put("CANO", firstPart);
+        body.put("ACNT_PRDT_CD", lastPart);
+        body.put("OVRS_EXCG_CD", "NASD");
+        body.put("PDNO", "TQQQ");
+        body.put("ORD_QTY", qty.toString());
+        body.put("OVRS_ORD_UNPR", purchasePrice); // 1주당 가격
+        body.put("ORD_SVR_DVSN_CD", "0");
+        body.put("ORD_DVSN", "34");
+
+        // ObjectMapper를 사용하여 body를 JSON 문자열로 변환
+        try {
+            ObjectMapper objectMapper = new ObjectMapper();
+            String jsonBody = objectMapper.writeValueAsString(body);
+
+            HttpEntity<String> requestEntity = new HttpEntity<>(jsonBody, headers);
+            ResponseEntity<String> responseEntity = restTemplate.exchange(
+                    "https://openapi.koreainvestment.com:9443/uapi/overseas-stock/v1/trading/order",
+                    HttpMethod.POST,
+                    requestEntity,
+                    String.class
+            );
+
+            String responseBody = responseEntity.getBody();
+            JsonNode rootNode = objectMapper.readTree(responseBody);
+            JsonNode rtCd = rootNode.path("rt_cd");
+            JsonNode msg1 = rootNode.path("msg1");
+
+            if (rtCd.asInt() == 0) { // 성공 처리
+                log.info(msg1.asText());
+            } else if (rtCd.asInt() == 7) { // 휴장일
+
+            } else { // 실패 처리
+                User user = utilService.findByUserIdWithValidation(userId);
+                ErrorLog errorLog = new ErrorLog();
+                errorLog.createHistory("매수에 실패하였습니다. 사유:" + msg1.asText(), user);
+                errorLogRepository.save(errorLog);
+            }
+
+            return msg1.asText();
+
+        } catch (Exception e) {
+            User user = utilService.findByUserIdWithValidation(userId);
+            ErrorLog errorLog = new ErrorLog();
+            errorLog.createHistory("매수에 실패하였습니다. 사유:" + e.getMessage(), user);
+            errorLogRepository.save(errorLog);
+            log.info(e.getMessage());
+            throw new BaseException(INVALID_PARAMS);
+        }
+    }
+
+    /**
+     * 주식 매도 주문
+     */
+    @Transactional
+    public String sellOrder(Long userId, String sellingPrice, Integer qty) throws BaseException {
+        String accessToken = utilService.findTokenByUserIdWithValidation(userId);
+        String appKey = utilService.findAppKeyByUserIdWithValidation(userId);
+        String appSecret = utilService.findAppSecretByUserIdWithValidation(userId);
+        String accountNumber = utilService.findAccountNumByUserIdWithValidation(userId);
+        String firstPart = accountNumber.substring(0, 8); // 계좌번호 첫 8자리
+        String lastPart = accountNumber.substring(8); // 계좌번호 나머지 2자리
+        String trId = "TTTT1006U";
+
+        RestTemplate restTemplate = new RestTemplate();
+
+        // 헤더 설정
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.add("authorization", "Bearer " + accessToken);
+        headers.add("appkey", appKey);
+        headers.add("appsecret", appSecret);
+        headers.add("tr_id", trId);
+        headers.add("User-Agent", "Mozilla/5.0");
+
+        // 바디 설정 (JSON으로 변환)
+        Map<String, Object> body = new HashMap<>();
+        body.put("CANO", firstPart);
+        body.put("ACNT_PRDT_CD", lastPart);
+        body.put("OVRS_EXCG_CD", "NASD");
+        body.put("PDNO", "TQQQ");
+        body.put("ORD_QTY", qty.toString());
+        body.put("OVRS_ORD_UNPR", sellingPrice); // 1주당 가격
+        body.put("SLL_TYPE", "00");
+        body.put("ORD_SVR_DVSN_CD", "0");
+        body.put("ORD_DVSN", "34");
+
+        // ObjectMapper를 사용하여 body를 JSON 문자열로 변환
+        try {
+            ObjectMapper objectMapper = new ObjectMapper();
+            String jsonBody = objectMapper.writeValueAsString(body);
+
+            HttpEntity<String> requestEntity = new HttpEntity<>(jsonBody, headers);
+            ResponseEntity<String> responseEntity = restTemplate.exchange(
+                    "https://openapi.koreainvestment.com:9443/uapi/overseas-stock/v1/trading/order",
+                    HttpMethod.POST,
+                    requestEntity,
+                    String.class
+            );
+
+            String responseBody = responseEntity.getBody();
+            JsonNode rootNode = objectMapper.readTree(responseBody);
+            JsonNode rtCd = rootNode.path("rt_cd");
+            JsonNode msg1 = rootNode.path("msg1");
+
+            if (rtCd.asInt() == 0) { // 성공 처리
+                log.info(msg1.asText());
+            } else if (rtCd.asInt() == 7) { // 휴장일
+
+            } else { // 실패 처리
+                User user = utilService.findByUserIdWithValidation(userId);
+                ErrorLog errorLog = new ErrorLog();
+                errorLog.createHistory("매도에 실패하였습니다. 사유:" + msg1.asText(), user);
+                errorLogRepository.save(errorLog);
+            }
+
+            return msg1.asText();
+
+        } catch (Exception e) {
+            User user = utilService.findByUserIdWithValidation(userId);
+            ErrorLog errorLog = new ErrorLog();
+            errorLog.createHistory("매도에 실패하였습니다. 사유:" + e.getMessage(), user);
+            errorLogRepository.save(errorLog);
+            log.info(e.getMessage());
+            throw new BaseException(INVALID_PARAMS);
+        }
+    }
 
 }

@@ -22,6 +22,7 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -185,51 +186,88 @@ public class UserService {
         String accountNumber = utilService.findAccountNumByUserIdWithValidation(userId);
         String firstPart = accountNumber.substring(0, 8); // 계좌번호 첫 8자리
         String lastPart = accountNumber.substring(8); // 계좌번호 나머지 2자리
-        String trId = "TTTS3012R";
+        String trId1 = "TTTS3012R";
+        String trId2 = "CTRP6504R";
 
         RestTemplate restTemplate = new RestTemplate();
 
-        // 헤더 설정
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.add("authorization", "Bearer " + accessToken);
-        headers.add("appkey", appKey);
-        headers.add("appsecret", appSecret);
-        headers.add("tr_id", trId);
-        headers.add("User-Agent", "Mozilla/5.0");
+        // 헤더 설정 1 (잔고 조회)
+        HttpHeaders headers1 = new HttpHeaders();
+        headers1.setContentType(MediaType.APPLICATION_JSON);
+        headers1.add("authorization", "Bearer " + accessToken);
+        headers1.add("appkey", appKey);
+        headers1.add("appsecret", appSecret);
+        headers1.add("tr_id", trId1);
+        headers1.add("User-Agent", "Mozilla/5.0");
 
-        // 파라미터 설정
-        MultiValueMap<String, String> queryParams = new LinkedMultiValueMap<>();
-        queryParams.add("CANO", firstPart);
-        queryParams.add("ACNT_PRDT_CD", lastPart);
-        queryParams.add("OVRS_EXCG_CD", "NASD");
-        queryParams.add("TR_CRCY_CD", "USD");
-        queryParams.add("CTX_AREA_FK200", "");
-        queryParams.add("CTX_AREA_NK200", "");
+        // 헤더 설정 2 (체결 기준 현재 잔고 조회)
+        HttpHeaders headers2 = new HttpHeaders();
+        headers2.setContentType(MediaType.APPLICATION_JSON);
+        headers2.add("authorization", "Bearer " + accessToken);
+        headers2.add("appkey", appKey);
+        headers2.add("appsecret", appSecret);
+        headers2.add("tr_id", trId2);
+        headers2.add("User-Agent", "Mozilla/5.0");
 
-        String url = "https://openapi.koreainvestment.com:9443/uapi/overseas-stock/v1/trading/inquire-balance";
-        UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(url).queryParams(queryParams);
-        String finalUrl = builder.toUriString();
+        // 파라미터 설정 1
+        MultiValueMap<String, String> queryParams1 = new LinkedMultiValueMap<>();
+        queryParams1.add("CANO", firstPart);
+        queryParams1.add("ACNT_PRDT_CD", lastPart);
+        queryParams1.add("OVRS_EXCG_CD", "NASD");
+        queryParams1.add("TR_CRCY_CD", "USD");
+        queryParams1.add("CTX_AREA_FK200", "");
+        queryParams1.add("CTX_AREA_NK200", "");
+
+        // 파라미터 설정 2
+        MultiValueMap<String, String> queryParams2 = new LinkedMultiValueMap<>();
+        queryParams2.add("CANO", firstPart);
+        queryParams2.add("ACNT_PRDT_CD", lastPart);
+        queryParams2.add("NATN_CD", "000");
+        queryParams2.add("WCRC_FRCR_DVSN_CD", "01");
+        queryParams2.add("TR_MKET_CD", "00");
+        queryParams2.add("INQR_DVSN_CD", "00");
+
+        String url1 = "https://openapi.koreainvestment.com:9443/uapi/overseas-stock/v1/trading/inquire-balance";
+        UriComponentsBuilder builder1 = UriComponentsBuilder.fromHttpUrl(url1).queryParams(queryParams1);
+        String finalUrl1 = builder1.toUriString();
+
+        String url2 = "https://openapi.koreainvestment.com:9443/uapi/overseas-stock/v1/trading/inquire-present-balance";
+        UriComponentsBuilder builder2 = UriComponentsBuilder.fromHttpUrl(url2).queryParams(queryParams2);
+        String finalUrl2 = builder2.toUriString();
 
         try {
-            HttpEntity<Map<String, String>> requestEntity = new HttpEntity<>(headers);
-            ResponseEntity<String> responseEntity = restTemplate.exchange(
-                    finalUrl,  // 호출할 API의 URL
+            HttpEntity<Map<String, String>> requestEntity1 = new HttpEntity<>(headers1);
+            ResponseEntity<String> responseEntity1 = restTemplate.exchange(
+                    finalUrl1,  // 호출할 API의 URL
                     HttpMethod.GET,
-                    requestEntity,
+                    requestEntity1,
                     String.class
             );
 
-            String responseBody = responseEntity.getBody();
-            JsonNode rootNode = objectMapper.readTree(responseBody);
-            JsonNode output2 = rootNode.path("output2");
+            String responseBody1 = responseEntity1.getBody();
+            JsonNode rootNode1 = objectMapper.readTree(responseBody1);
+            JsonNode output2_1 = rootNode1.path("output2");
+
+            HttpEntity<Map<String, String>> requestEntity2 = new HttpEntity<>(headers2);
+            ResponseEntity<String> responseEntity2 = restTemplate.exchange(
+                    finalUrl2,  // 호출할 API의 URL
+                    HttpMethod.GET,
+                    requestEntity2,
+                    String.class
+            );
+
+            String responseBody2 = responseEntity2.getBody();
+            JsonNode rootNode2 = objectMapper.readTree(responseBody2);
+            JsonNode output3_2 = rootNode2.path("output3");
 
             return new GetTotalBalanceRes(
-                    Float.parseFloat(output2.path("ovrs_tot_pfls").asText()),
-                    Float.parseFloat(output2.path("ovrs_rlzt_pfls_amt").asText()),
-                    Float.parseFloat(output2.path("rlzt_erng_rt").asText()),
-                    Float.parseFloat(output2.path("tot_evlu_pfls_amt").asText()),
-                    Float.parseFloat(output2.path("tot_pftrt").asText())
+                    Float.parseFloat(output2_1.path("ovrs_tot_pfls").asText()),
+                    Float.parseFloat(output2_1.path("ovrs_rlzt_pfls_amt").asText()),
+                    Float.parseFloat(output2_1.path("rlzt_erng_rt").asText()),
+                    Float.parseFloat(output2_1.path("tot_evlu_pfls_amt").asText()),
+                    Float.parseFloat(output2_1.path("tot_pftrt").asText()),
+                    Float.parseFloat(output3_2.path("tot_frcr_cblc_smtl").asText()),
+                    Float.parseFloat(output3_2.path("tot_asst_amt").asText())
             );
 
         } catch (Exception e) {
@@ -279,48 +317,59 @@ public class UserService {
                     String.class
             );
 
-            // TODO: output1이 비어있을 때(보유 수량이 0일 때) 또는 종목 수가 2 이상인 경우에 대한 예외처리
-//            String responseBody = responseEntity.getBody();
-//            JsonNode rootNode = objectMapper.readTree(responseBody);
-//            JsonNode outputArray = rootNode.path("output1");
-//            JsonNode targetNode = null;
-//            for (JsonNode node : outputArray) {
-//                if ("TQQQ".equals(node.path("ovrs_pdno").asText())) {
-//                    targetNode = node;
-//                    break;
-//                }
-//            }
-//
-//            if (targetNode != null) {
-//                return new GetItemBalanceRes(
-//                        targetNode.path("ovrs_pdno").asText(),
-//                        Float.parseFloat(targetNode.path("frcr_evlu_pfls_amt").asText()),
-//                        Float.parseFloat(targetNode.path("evlu_pfls_rt").asText()),
-//                        Float.parseFloat(targetNode.path("pchs_avg_pric").asText()),
-//                        Integer.parseInt(targetNode.path("ovrs_cblc_qty").asText()),
-//                        Float.parseFloat(targetNode.path("ovrs_stck_evlu_amt").asText())
-//                );
-//            } else {
-//                return new GetItemBalanceRes("TQQQ", 0F, 0F, 0F, 0, 0F);
-//            }
-
             String responseBody = responseEntity.getBody();
             JsonNode rootNode = objectMapper.readTree(responseBody);
-            JsonNode output1 = rootNode.path("output1").get(0);
-            log.info(String.valueOf(output1));
+            JsonNode matchingNode = null;
+
+            // "output1" 노드 확인
+            JsonNode output1Node = rootNode.path("output1");
+
+            // 빈 배열인지 확인
+            if (output1Node.isArray() && output1Node.isEmpty()) {
+                return new GetItemBalanceRes("TQQQ", 0F, 0F, 0F, 0, 0F);
+            } else {
+                for (JsonNode node : output1Node) {
+                    if ("TQQQ".equals(node.path("ovrs_pdno").asText())) {
+                        matchingNode = node;
+                        break;
+                    }
+                }
+                // TQQQ 종목에 대한 정보를 우선 제공, TQQQ가 없는 경우 첫번째 보유한 종목 표시
+                if (matchingNode == null) {
+                    matchingNode = output1Node.get(0);
+                }
+            }
+
+            log.info(String.valueOf(matchingNode));
             return new GetItemBalanceRes(
-                    output1.path("ovrs_pdno").asText(),
-                    Float.parseFloat(output1.path("frcr_evlu_pfls_amt").asText()),
-                    Float.parseFloat(output1.path("evlu_pfls_rt").asText()),
-                    Float.parseFloat(output1.path("pchs_avg_pric").asText()),
-                    Integer.parseInt(output1.path("ovrs_cblc_qty").asText()),
-                    Float.parseFloat(output1.path("ovrs_stck_evlu_amt").asText())
+                    matchingNode.path("ovrs_pdno").asText(),
+                    Float.parseFloat(matchingNode.path("frcr_evlu_pfls_amt").asText()),
+                    Float.parseFloat(matchingNode.path("evlu_pfls_rt").asText()),
+                    Float.parseFloat(matchingNode.path("pchs_avg_pric").asText()),
+                    Integer.parseInt(matchingNode.path("ovrs_cblc_qty").asText()),
+                    Float.parseFloat(matchingNode.path("ovrs_stck_evlu_amt").asText())
             );
 
         } catch (Exception e) {
             System.out.println(e.getMessage());
             throw new BaseException(INVALID_PARAMS);
         }
+    }
+
+    @Transactional
+    public List<GetErrorLogRes> getErrorLogs(Long userId) throws BaseException {
+        List<GetErrorLogReq> getErrorLogReqList =  utilService.findErrorLogsByUserIdWithValidation(userId);
+        List<GetErrorLogRes> getErrorLogResList = new ArrayList<>();
+
+        for (GetErrorLogReq req : getErrorLogReqList) {
+            String formattedDate = req.getDate().toString(); // LocalDate -> String
+            String formattedTime = req.getTime().toString(); // LocalTime -> String
+            String message = req.getMessage();
+
+            getErrorLogResList.add(new GetErrorLogRes(formattedDate, formattedTime, message));
+        }
+
+        return getErrorLogResList;
     }
 
     /**

@@ -1,9 +1,12 @@
 package com.example.QuantInvestigation.utils;
 
+import com.example.QuantInvestigation.error_log.ErrorLogRepository;
 import com.example.QuantInvestigation.exception.BaseException;
 import com.example.QuantInvestigation.exception.BaseResponseStatus;
 import com.example.QuantInvestigation.user.User;
 import com.example.QuantInvestigation.user.UserRepository;
+import com.example.QuantInvestigation.user.dto.GetErrorLogReq;
+import com.example.QuantInvestigation.user.dto.GetErrorLogRes;
 import com.example.QuantInvestigation.user.dto.RefreshTokenReq;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -15,7 +18,9 @@ import static com.example.QuantInvestigation.exception.BaseResponseStatus.*;
 @Service
 @RequiredArgsConstructor
 public class UtilService {
+
     private final UserRepository userRepository;
+    private final ErrorLogRepository errorLogRepository;
 
     public User findByUserIdWithValidation(Long userId) throws BaseException {
         return userRepository.findUserByUserId(userId)
@@ -50,6 +55,10 @@ public class UtilService {
     public List<RefreshTokenReq> findRefreshTokenReqAllWithValidation() throws BaseException {
         return userRepository.findRefreshTokenReq()
                 .orElseThrow(() -> new BaseException(DATABASE_ERROR));
+    }
+
+    public List<GetErrorLogReq> findErrorLogsByUserIdWithValidation(Long userId) throws BaseException {
+        return errorLogRepository.findGetErrorLogReq(userId);
     }
 
 }

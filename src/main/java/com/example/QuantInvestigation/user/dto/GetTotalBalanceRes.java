@@ -13,4 +13,6 @@ public class GetTotalBalanceRes {
     private Float realizedRate; // 실현 수익율
     private Float totalRatingLoss; // 전체 평가 손실
     private Float totalRate; // 전체 수익율
+    private Float totalDeposit; // 총 예수금
+    private Float totalEvaluationAmount; // 총 평가금
 }

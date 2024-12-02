@@ -78,6 +78,16 @@ public class UserController {
         }
     }
 
+    @GetMapping("/error-log")
+    public BaseResponse<List<GetErrorLogRes>> getErrorLogs(){
+        try{
+            Long userId = jwtService.getUserIdx();
+            return new BaseResponse<>(userService.getErrorLogs(userId));
+        } catch (BaseException exception) {
+            return new BaseResponse<>(exception.getStatus());
+        }
+    }
+
     /**
      * 안정성 검증을 위한 테스트 호출 (매수, 매도)
      */

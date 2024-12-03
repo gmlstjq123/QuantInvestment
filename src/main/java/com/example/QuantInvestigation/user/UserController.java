@@ -79,10 +79,30 @@ public class UserController {
     }
 
     @GetMapping("/error-log")
-    public BaseResponse<List<GetErrorLogRes>> getErrorLogs(){
+    public BaseResponse<List<GetErrorLogRes>> getErrorLogs() {
         try{
             Long userId = jwtService.getUserIdx();
             return new BaseResponse<>(userService.getErrorLogs(userId));
+        } catch (BaseException exception) {
+            return new BaseResponse<>(exception.getStatus());
+        }
+    }
+
+    @PatchMapping("/is-running")
+    public BaseResponse<String> patchIsRunning() {
+        try{
+            Long userId = jwtService.getUserIdx();
+            return new BaseResponse<>(userService.patchIsRunning(userId));
+        } catch (BaseException exception) {
+            return new BaseResponse<>(exception.getStatus());
+        }
+    }
+
+    @PatchMapping("/divisions")
+    public BaseResponse<String> patchDivisions(@RequestParam("div") Integer div) {
+        try{
+            Long userId = jwtService.getUserIdx();
+            return new BaseResponse<>(userService.patchDivisions(userId, div));
         } catch (BaseException exception) {
             return new BaseResponse<>(exception.getStatus());
         }

@@ -8,6 +8,8 @@ import com.example.QuantInvestigation.user.UserRepository;
 import com.example.QuantInvestigation.user.dto.GetErrorLogReq;
 import com.example.QuantInvestigation.user.dto.GetErrorLogRes;
 import com.example.QuantInvestigation.user.dto.RefreshTokenReq;
+import com.example.QuantInvestigation.user.user_option.UserOption;
+import com.example.QuantInvestigation.user.user_option.UserOptionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -21,6 +23,7 @@ public class UtilService {
 
     private final UserRepository userRepository;
     private final ErrorLogRepository errorLogRepository;
+    private final UserOptionRepository userOptionRepository;
 
     public User findByUserIdWithValidation(Long userId) throws BaseException {
         return userRepository.findUserByUserId(userId)
@@ -61,4 +64,13 @@ public class UtilService {
         return errorLogRepository.findGetErrorLogReq(userId);
     }
 
+    public Boolean findIsRunningByUserIdWithValidation(Long userId) throws BaseException {
+        return userOptionRepository.findIsRunningByUserId(userId)
+                .orElseThrow(() -> new BaseException(DATABASE_ERROR));
+    }
+
+    public UserOption findUserOptionByUserIdWithValidation(Long userId) throws BaseException {
+        return userOptionRepository.findUserOptionByUserId(userId)
+                .orElseThrow(() -> new BaseException(DATABASE_ERROR));
+    }
 }

@@ -6,6 +6,8 @@ import com.example.QuantInvestigation.error_log.ErrorLogRepository;
 import com.example.QuantInvestigation.token.JwtProvider;
 import com.example.QuantInvestigation.token.dto.JwtResponseDTO;
 import com.example.QuantInvestigation.user.dto.*;
+import com.example.QuantInvestigation.user.user_option.UserOption;
+import com.example.QuantInvestigation.user.user_option.UserOptionRepository;
 import com.example.QuantInvestigation.utils.AES128;
 import com.example.QuantInvestigation.utils.Secret;
 import com.example.QuantInvestigation.utils.UtilService;
@@ -39,6 +41,7 @@ public class UserService {
     private final JwtProvider jwtProvider;
     private final ObjectMapper objectMapper;
     private final ErrorLogRepository errorLogRepository;
+    private final UserOptionRepository userOptionRepository;
 
     @Transactional
     public String joinUser(PostJoinReq postJoinReq) throws BaseException {
@@ -77,7 +80,8 @@ public class UserService {
             Map<?, ?> data = gsonObj.fromJson(tokenInfo, Map.class);
             accessToken = (String) data.get("access_token");
 
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.error(e.getMessage());
             throw new BaseException(INVALID_AUTH_INPUT);
         }
 
@@ -90,7 +94,18 @@ public class UserService {
 
         User user = new User();
         user.createUser(id, pwd, appKey, appSecret, accessToken, accountNum);
+
+        UserOption userOption = UserOption.builder()
+                .divisions(10)
+                .T(0)
+                .isRunning(true)
+                .user(user)
+                .build();
+
+        user.setUserOption(userOption);
+        userOptionRepository.save(userOption);
         userRepository.save(user);
+        userRepository.flush();
 
         return "회원 가입이 완료되었습니다.";
     }
@@ -370,6 +385,26 @@ public class UserService {
         }
 
         return getErrorLogResList;
+    }
+
+    @Transactional
+    public String patchIsRunning(Long userId) throws BaseException {
+        UserOption userOption = utilService.findUserOptionByUserIdWithValidation(userId);
+        if (userOption.getIsRunning()) { // 매매 진행 상태
+            userOption.setIsRunning(false);
+            return "퀀트 투자를 종료합니다.";
+        } else { // 매매 중단 상태
+            userOption.setIsRunning(true);
+            return "퀀트 투자를 재시작합니다.";
+        }
+    }
+
+    @Transactional
+    public String patchDivisions(Long userId, Integer div) throws BaseException {
+        UserOption userOption = utilService.findUserOptionByUserIdWithValidation(userId);
+        userOption.setDivisions(div);
+
+        return "분할 수 설정이 변경되었습니다.";
     }
 
     /**

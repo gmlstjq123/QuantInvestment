@@ -1,5 +1,8 @@
 package com.example.QuantInvestigation.user;
 
+import com.example.QuantInvestigation.buy_shares.BuyShares;
+import com.example.QuantInvestigation.buy_shares.BuySharesRepository;
+import com.example.QuantInvestigation.chart.dto.GetPeriodPriceRes;
 import com.example.QuantInvestigation.exception.BaseException;
 import com.example.QuantInvestigation.error_log.ErrorLog;
 import com.example.QuantInvestigation.error_log.ErrorLogRepository;
@@ -24,10 +27,9 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
 
 import static com.example.QuantInvestigation.exception.BaseResponseStatus.*;
 
@@ -42,6 +44,7 @@ public class UserService {
     private final ObjectMapper objectMapper;
     private final ErrorLogRepository errorLogRepository;
     private final UserOptionRepository userOptionRepository;
+    private final BuySharesRepository buySharesRepository;
 
     @Transactional
     public String joinUser(PostJoinReq postJoinReq) throws BaseException {
@@ -182,12 +185,12 @@ public class UserService {
                 userRepository.updateAccessTokenByUserId(userId, accessToken);
                 System.out.println(userId + "의 액세스 토큰: " + accessToken);
 
-            } catch (Exception ignored) {
+            } catch (Exception e) {
+                System.out.println(e.getMessage());
                 User user = utilService.findByUserIdWithValidation(userId);
                 ErrorLog errorLog = new ErrorLog();
-                errorLog.createHistory("OAuth 토큰 갱신에 실패하였습니다.", user);
+                errorLog.createHistory(e.getMessage(), user);
                 errorLogRepository.save(errorLog);
-
                 throw new BaseException(INVALID_AUTH_INPUT);
             }
         }
@@ -286,6 +289,11 @@ public class UserService {
             );
 
         } catch (Exception e) {
+            System.out.println(e.getMessage());
+            User user = utilService.findByUserIdWithValidation(userId);
+            ErrorLog errorLog = new ErrorLog();
+            errorLog.createHistory(e.getMessage(), user);
+            errorLogRepository.save(errorLog);
             throw new BaseException(INVALID_PARAMS);
         }
     }
@@ -367,6 +375,10 @@ public class UserService {
 
         } catch (Exception e) {
             System.out.println(e.getMessage());
+            User user = utilService.findByUserIdWithValidation(userId);
+            ErrorLog errorLog = new ErrorLog();
+            errorLog.createHistory(e.getMessage(), user);
+            errorLogRepository.save(errorLog);
             throw new BaseException(INVALID_PARAMS);
         }
     }
@@ -407,11 +419,29 @@ public class UserService {
         return "분할 수 설정이 변경되었습니다.";
     }
 
+    @Transactional
+    public List<GetBuySharesRes> getBuyShares(Long userId) throws BaseException {
+        List<BuyShares> buySharesList = buySharesRepository.findBuySharesByUserId(userId);
+        List<GetBuySharesRes> getBuySharesResList= new ArrayList<>();
+
+        for (BuyShares buyShares: buySharesList) {
+            String formattedDate = buyShares.getDate().toString(); // LocalDate -> String
+            String formattedTime = buyShares.getTime().toString(); // LocalTime -> String
+            float price = buyShares.getPrice();
+            int qty = buyShares.getQty();
+            String message = price + " 가격에 " + qty + "주 매수하였습니다.";
+
+            getBuySharesResList.add(new GetBuySharesRes(formattedDate, formattedTime, message));
+        }
+
+        return getBuySharesResList;
+    }
+
     /**
      * 주식 매수 주문
      */
     @Transactional
-    public String buyOrder(Long userId, String purchasePrice, Integer qty) throws BaseException {
+    public String buyOrder(Long userId, String ticker, String purchasePrice, Integer qty) throws BaseException {
         String accessToken = utilService.findTokenByUserIdWithValidation(userId);
         String appKey = utilService.findAppKeyByUserIdWithValidation(userId);
         String appSecret = utilService.findAppSecretByUserIdWithValidation(userId);
@@ -436,7 +466,7 @@ public class UserService {
         body.put("CANO", firstPart);
         body.put("ACNT_PRDT_CD", lastPart);
         body.put("OVRS_EXCG_CD", "NASD");
-        body.put("PDNO", "TQQQ");
+        body.put("PDNO", ticker);
         body.put("ORD_QTY", qty.toString());
         body.put("OVRS_ORD_UNPR", purchasePrice); // 1주당 가격
         body.put("ORD_SVR_DVSN_CD", "0");
@@ -474,11 +504,11 @@ public class UserService {
             return msg1.asText();
 
         } catch (Exception e) {
+            System.out.println(e.getMessage());
             User user = utilService.findByUserIdWithValidation(userId);
             ErrorLog errorLog = new ErrorLog();
-            errorLog.createHistory("매수에 실패하였습니다. 사유:" + e.getMessage(), user);
+            errorLog.createHistory(e.getMessage(), user);
             errorLogRepository.save(errorLog);
-            log.info(e.getMessage());
             throw new BaseException(INVALID_PARAMS);
         }
     }
@@ -487,7 +517,7 @@ public class UserService {
      * 주식 매도 주문
      */
     @Transactional
-    public String sellOrder(Long userId, String sellingPrice, Integer qty) throws BaseException {
+    public String sellOrder(Long userId, String ticker, String sellingPrice, Integer qty, Boolean isCutOff) throws BaseException {
         String accessToken = utilService.findTokenByUserIdWithValidation(userId);
         String appKey = utilService.findAppKeyByUserIdWithValidation(userId);
         String appSecret = utilService.findAppSecretByUserIdWithValidation(userId);
@@ -495,6 +525,11 @@ public class UserService {
         String firstPart = accountNumber.substring(0, 8); // 계좌번호 첫 8자리
         String lastPart = accountNumber.substring(8); // 계좌번호 나머지 2자리
         String trId = "TTTT1006U";
+
+        String orderType = "34"; // LOC 매도
+        if (isCutOff) {
+            orderType = "33"; // MOC 매도
+        }
 
         RestTemplate restTemplate = new RestTemplate();
 
@@ -512,12 +547,12 @@ public class UserService {
         body.put("CANO", firstPart);
         body.put("ACNT_PRDT_CD", lastPart);
         body.put("OVRS_EXCG_CD", "NASD");
-        body.put("PDNO", "TQQQ");
+        body.put("PDNO", ticker);
         body.put("ORD_QTY", qty.toString());
         body.put("OVRS_ORD_UNPR", sellingPrice); // 1주당 가격
         body.put("SLL_TYPE", "00");
         body.put("ORD_SVR_DVSN_CD", "0");
-        body.put("ORD_DVSN", "34");
+        body.put("ORD_DVSN", orderType);
 
         // ObjectMapper를 사용하여 body를 JSON 문자열로 변환
         try {
@@ -540,7 +575,7 @@ public class UserService {
             if (rtCd.asInt() == 0) { // 성공 처리
                 log.info(msg1.asText());
             } else if (rtCd.asInt() == 7) { // 휴장일
-
+                log.info(msg1.asText());
             } else { // 실패 처리
                 User user = utilService.findByUserIdWithValidation(userId);
                 ErrorLog errorLog = new ErrorLog();
@@ -551,13 +586,322 @@ public class UserService {
             return msg1.asText();
 
         } catch (Exception e) {
+            System.out.println(e.getMessage());
             User user = utilService.findByUserIdWithValidation(userId);
             ErrorLog errorLog = new ErrorLog();
-            errorLog.createHistory("매도에 실패하였습니다. 사유:" + e.getMessage(), user);
+            errorLog.createHistory(e.getMessage(), user);
             errorLogRepository.save(errorLog);
-            log.info(e.getMessage());
             throw new BaseException(INVALID_PARAMS);
         }
+    }
+
+    @Transactional
+    public void automaticBuyAndSell(String ticker) {
+
+        List<User> users = userRepository.findAll();
+        log.info("<--------- 유저 목록 --------->");
+        log.info(users.toString());
+
+        for (User user : users) {
+            Long userId = user.getUserId();
+            UserOption userOption = utilService.findUserOptionByUserIdWithValidation(userId);
+            log.info("<--------- {}님의 옵션 정보 --------->", user.getId());
+            log.info(userOption.toString());
+
+            Boolean isRunning = userOption.getIsRunning();
+            Integer divisions = userOption.getDivisions();
+            Integer T = userOption.getT();
+
+            // TODO: 매수 로직
+            if (isRunning) { // 퀀트 투자 진행 중인 경우에만 매수 진행
+                /** 1. 전일 종가 & 예수금 조회 **/
+                Float prevClose;
+                float totalDeposit = 0F;
+
+                String accessToken = utilService.findTokenByUserIdWithValidation(userId);
+                String appKey = utilService.findAppKeyByUserIdWithValidation(userId);
+                String appSecret = utilService.findAppSecretByUserIdWithValidation(userId);
+
+                String accountNumber = utilService.findAccountNumByUserIdWithValidation(userId);
+                String firstPart = accountNumber.substring(0, 8); // 계좌번호 첫 8자리
+                String lastPart = accountNumber.substring(8); // 계좌번호 나머지 2자리
+
+                String trId = "CTRP6504R"; // 예수금 조회
+
+                RestTemplate restTemplate = new RestTemplate();
+
+                // 헤더 설정 (예수금 조회)
+                HttpHeaders headers = new HttpHeaders();
+                headers.setContentType(MediaType.APPLICATION_JSON);
+                headers.add("authorization", "Bearer " + accessToken);
+                headers.add("appkey", appKey);
+                headers.add("appsecret", appSecret);
+                headers.add("tr_id", trId);
+                headers.add("User-Agent", "Mozilla/5.0");
+
+                // 파라미터 설정 (예수금 조회)
+                MultiValueMap<String, String> queryParams = new LinkedMultiValueMap<>();
+                queryParams.add("CANO", firstPart);
+                queryParams.add("ACNT_PRDT_CD", lastPart);
+                queryParams.add("NATN_CD", "000");
+                queryParams.add("WCRC_FRCR_DVSN_CD", "01");
+                queryParams.add("TR_MKET_CD", "00");
+                queryParams.add("INQR_DVSN_CD", "00");
+
+                String url = "https://openapi.koreainvestment.com:9443/uapi/overseas-stock/v1/trading/inquire-present-balance";
+                UriComponentsBuilder builder2 = UriComponentsBuilder.fromHttpUrl(url).queryParams(queryParams);
+                String finalUrl2 = builder2.toUriString();
+
+                prevClose = inquiryClosingPrice(accessToken, appKey, appSecret, ticker, 1);
+
+                try {
+                    HttpEntity<Map<String, String>> requestEntity2 = new HttpEntity<>(headers);
+                    ResponseEntity<String> responseEntity2 = restTemplate.exchange(
+                            finalUrl2,  // 호출할 API의 URL
+                            HttpMethod.GET,
+                            requestEntity2,
+                            String.class
+                    );
+
+                    String responseBody2 = responseEntity2.getBody();
+                    JsonNode rootNode2 = objectMapper.readTree(responseBody2);
+                    JsonNode output3_2 = rootNode2.path("output3");
+
+                    totalDeposit = Float.parseFloat(output3_2.path("tot_frcr_cblc_smtl").asText());
+                } catch (Exception e) {
+                    System.out.println(e.getMessage());
+                    ErrorLog errorLog = new ErrorLog();
+                    errorLog.createHistory(e.getMessage(), user);
+                    errorLogRepository.save(errorLog);
+                    throw new BaseException(INVALID_PARAMS);
+                }
+
+                /** 2. 매수가 계산 & 매수 주문 **/
+                if (prevClose != null) {
+                    float purchasePrice; // 매수가 계산
+
+                    if (T >= 6) {
+                        purchasePrice = prevClose;
+                    } else {
+                        purchasePrice = prevClose * (1 + (6 - T) / 100.0f);
+                    }
+
+                    float buyAmount = totalDeposit / divisions; // 1회차 투자 금액
+                    int qty = (int) (buyAmount / purchasePrice);
+
+                    log.info("총 예수금: {}", totalDeposit);
+                    log.info("전일 종가: {}", prevClose);
+                    log.info("매수가: {}", purchasePrice);
+                    log.info("1회차 투자 금액: {}", buyAmount);
+                    log.info("매수 수량: {}", qty);
+
+                    buyOrder(userId, ticker, String.valueOf(purchasePrice), qty);
+                }
+            }
+
+            // TODO: 매도 로직
+            List<BuyShares> buySharesList = buySharesRepository.findBuySharesByUserId(userId);
+            log.info("<--------- {}님의 보유 주식 정보 --------->", user.getId());
+            log.info(buySharesList.toString());
+
+            for (BuyShares buyShares : buySharesList) {
+                Float price = buyShares.getPrice();
+                Integer qty = buyShares.getQty();
+                Integer retentionPeriod = buyShares.getRetentionPeriod();
+                boolean isCutOff = (retentionPeriod == 0);
+
+                float sellPrice = price * (1 + (12.5f - T) / 100.0f);
+                sellOrder(userId, ticker, String.valueOf(sellPrice), qty, isCutOff);
+            }
+
+        }
+    }
+
+    @Transactional
+    public void checkConclusion(String ticker) {
+
+        List<User> users = userRepository.findAll();
+
+        for (User user : users) {
+            UserOption userOption = utilService.findUserOptionByUserIdWithValidation(user.getUserId());
+            Integer T = userOption.getT();
+            Long userId = user.getUserId();
+
+            String accessToken = utilService.findTokenByUserIdWithValidation(userId);
+            String appKey = utilService.findAppKeyByUserIdWithValidation(userId);
+            String appSecret = utilService.findAppSecretByUserIdWithValidation(userId);
+            String accountNumber = utilService.findAccountNumByUserIdWithValidation(userId);
+            String firstPart = accountNumber.substring(0, 8); // 계좌번호 첫 8자리
+            String lastPart = accountNumber.substring(8); // 계좌번호 나머지 2자리
+            String trId = "CTOS4001R";
+
+            /** 1. 매도된 주식을 BuyShares에서 제거 **/
+            // 오늘 종가
+            Float close = inquiryClosingPrice(accessToken, appKey, appSecret, ticker, 0);
+            log.info("오늘 종가: {}", close);
+
+            float adjustmentFactor = (12.5f - 2 * T) / 100.0f; // 목표 매도가
+            int beforeCount = buySharesRepository.findBuySharesCountByUserId(userId);
+            if (close != null) { // 종가 > 목표 매도가인 경우 해당 buyShares를 DB에서 제거
+                buySharesRepository.deleteSoldShares(userId, close, adjustmentFactor);
+                buySharesRepository.flush();
+            }
+            int afterCount = buySharesRepository.findBuySharesCountByUserId(userId);
+            log.info("매도 주식 수: {}", beforeCount - afterCount);
+
+            /** 2. BuyShares의 보유 가능 일수 갱신 **/
+            List<BuyShares> buySharesList = buySharesRepository.findBuySharesByUserId(userId);
+
+            for (BuyShares buyShares : buySharesList) {
+                buyShares.setRetentionPeriod(buyShares.getRetentionPeriod() - 1); // 보유 가능 일수 1일 차감
+            }
+
+            /** 3. 신규 매수 주식을 BuyShares에 삽입 **/
+            RestTemplate restTemplate = new RestTemplate();
+
+            // 오늘 날짜
+            LocalDate today = LocalDate.now();
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+            String formattedDate = today.format(formatter);
+
+            // 헤더 설정
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.add("authorization", "Bearer " + accessToken);
+            headers.add("appkey", appKey);
+            headers.add("appsecret", appSecret);
+            headers.add("tr_id", trId);
+            headers.add("custtype", "P");
+            headers.add("User-Agent", "Mozilla/5.0");
+
+            // 파라미터 설정 (일별 거래 내역 조회)
+            MultiValueMap<String, String> queryParams = new LinkedMultiValueMap<>();
+            queryParams.add("CANO", firstPart);
+            queryParams.add("ACNT_PRDT_CD", lastPart);
+            queryParams.add("ERLM_STRT_DT", formattedDate);
+            queryParams.add("ERLM_END_DT", formattedDate);
+            queryParams.add("OVRS_EXCG_CD", "");
+            queryParams.add("PDNO", "");
+            queryParams.add("SLL_BUY_DVSN_CD", "00");
+            queryParams.add("LOAN_DVSN_CD", "");
+            queryParams.add("CTX_AREA_FK100", "");
+            queryParams.add("CTX_AREA_NK100", "");
+
+            String url = "https://openapi.koreainvestment.com:9443/uapi/overseas-stock/v1/trading/inquire-period-trans";
+            UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(url).queryParams(queryParams);
+            String finalUrl = builder.toUriString();
+
+            try {
+                HttpEntity<Map<String, String>> requestEntity = new HttpEntity<>(headers);
+                ResponseEntity<String> responseEntity = restTemplate.exchange(
+                        finalUrl,  // 호출할 API의 URL
+                        HttpMethod.GET,
+                        requestEntity,
+                        String.class
+                );
+
+                String responseBody = responseEntity.getBody();
+                JsonNode rootNode = objectMapper.readTree(responseBody);
+                JsonNode output1 = rootNode.path("output1");
+
+                // 빈 배열인지 확인
+                if (!output1.isArray() || !output1.isEmpty()) {
+                    for (JsonNode node : output1) {
+                        int qty = Integer.parseInt(node.path("ccld_qty").asText());
+                        float price = Float.parseFloat(node.path("ft_ccld_unpr2").asText());
+                        int retentionPeriod;
+
+                        if (T >= 6) {
+                            retentionPeriod = 12;
+                        } else {
+                            retentionPeriod = 30 - (3 * T);
+                        }
+
+                        BuyShares buyShares = BuyShares.builder()
+                                .price(price)
+                                .qty(qty)
+                                .retentionPeriod(retentionPeriod)
+                                .user(user)
+                                .build();
+
+                        buySharesRepository.save(buyShares);
+                        buySharesRepository.flush();
+                    }
+                }
+
+            } catch (Exception e) {
+                System.out.println(e.getMessage());
+                ErrorLog errorLog = new ErrorLog();
+                errorLog.createHistory(e.getMessage(), user);
+                errorLogRepository.save(errorLog);
+                throw new BaseException(INVALID_PARAMS);
+            }
+
+            /** 4. T 값 갱신 **/
+            userOption.setT(Math.min(buySharesRepository.findBuySharesCountByUserId(userId), 6));
+
+        }
+    }
+
+    @Transactional
+    private Float inquiryClosingPrice(String accessToken, String appKey, String appSecret, String ticker, Integer num) {
+        RestTemplate restTemplate = new RestTemplate();
+        String trId1 = "HHDFS76240000";
+
+        // 오늘 날짜
+        LocalDate today = LocalDate.now();
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+        String formattedDate = today.format(formatter);
+
+        // 헤더 설정 1 (오늘 종가 조회)
+        HttpHeaders headers1 = new HttpHeaders();
+        headers1.setContentType(MediaType.APPLICATION_JSON);
+        headers1.add("authorization", "Bearer " + accessToken);
+        headers1.add("appkey", appKey);
+        headers1.add("appsecret", appSecret);
+        headers1.add("tr_id", trId1);
+        headers1.add("User-Agent", "Mozilla/5.0");
+
+        // 파라미터 설정 1 (오늘 종가 조회)
+        MultiValueMap<String, String> queryParams1 = new LinkedMultiValueMap<>();
+        queryParams1.add("AUTH", "");
+        queryParams1.add("EXCD", "NAS");
+        queryParams1.add("SYMB", ticker);
+        queryParams1.add("GUBN", "0");
+        queryParams1.add("BYMD", formattedDate);
+        queryParams1.add("MODP", "1");
+
+        String url1 = "https://openapi.koreainvestment.com:9443/uapi/overseas-price/v1/quotations/dailyprice";
+        UriComponentsBuilder builder1 = UriComponentsBuilder.fromHttpUrl(url1).queryParams(queryParams1);
+        String finalUrl1 = builder1.toUriString();
+        Float close = null;
+
+        try {
+            HttpEntity<Map<String, String>> requestEntity = new HttpEntity<>(headers1);
+            ResponseEntity<String> responseEntity = restTemplate.exchange(
+                    finalUrl1,  // 호출할 API의 URL
+                    HttpMethod.GET,
+                    requestEntity,
+                    String.class
+            );
+
+            String responseBody = responseEntity.getBody();
+            JsonNode rootNode = objectMapper.readTree(responseBody);
+            JsonNode output2 = rootNode.path("output2");
+
+            if (output2.isArray() && output2.size() > 1) {
+                close = (float) output2.get(num).path("clos").asDouble(); // 전일 종가
+                log.info("clos 값: {}", close);
+
+            }
+
+        } catch (Exception e) {
+            log.error(e.getMessage());
+            throw new BaseException(INVALID_PARAMS);
+        }
+
+        return close;
+
     }
 
 }

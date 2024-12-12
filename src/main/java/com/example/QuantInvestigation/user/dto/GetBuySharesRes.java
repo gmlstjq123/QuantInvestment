@@ -7,8 +7,8 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 @Getter
-public class SellOrderReq {
-    private String ticker;
-    private String sellingPrice;
-    private Integer qty;
+public class GetBuySharesRes {
+    private String date;
+    private String time;
+    private String message;
 }

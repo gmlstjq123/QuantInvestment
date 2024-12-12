@@ -1,5 +1,6 @@
 package com.example.QuantInvestigation.buy_shares;
 
+import com.example.QuantInvestigation.user.User;
 import com.example.QuantInvestigation.utils.BaseTimeEntity;
 import jakarta.persistence.*;
 import lombok.*;
@@ -24,5 +25,16 @@ public class BuyShares extends BaseTimeEntity {
 
     @Column(nullable = false)
     private Integer retentionPeriod; // 보유 가능 기간
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id")
+    private User user; // 유저와 관계 매핑
+
+    public BuyShares createBuyShares(Integer qty, Float price, Integer retentionPeriod) {
+        this.qty = qty;
+        this.price = price;
+        this.retentionPeriod= retentionPeriod;
+        return this;
+    }
 
 }

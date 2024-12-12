@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @Getter
 public class BuyOrderReq {
+    private String ticker;
     private String purchasePrice;
     private Integer qty;
 }

@@ -108,6 +108,16 @@ public class UserController {
         }
     }
 
+    @GetMapping("buy-shares")
+    public BaseResponse<List<GetBuySharesRes>> getBuyShares() {
+        try{
+            Long userId = jwtService.getUserIdx();
+            return new BaseResponse<>(userService.getBuyShares(userId));
+        } catch (BaseException exception) {
+            return new BaseResponse<>(exception.getStatus());
+        }
+    }
+
     /**
      * 안정성 검증을 위한 테스트 호출 (매수, 매도)
      */
@@ -115,7 +125,7 @@ public class UserController {
     public BaseResponse<String> buyOrder(@RequestBody BuyOrderReq buyOrderReq){
         try{
             Long userId = jwtService.getUserIdx();
-            return new BaseResponse<>(userService.buyOrder(userId, buyOrderReq.getPurchasePrice(), buyOrderReq.getQty()));
+            return new BaseResponse<>(userService.buyOrder(userId, buyOrderReq.getTicker(), buyOrderReq.getPurchasePrice(), buyOrderReq.getQty()));
         } catch (BaseException exception) {
             return new BaseResponse<>(exception.getStatus());
         }
@@ -125,7 +135,7 @@ public class UserController {
     public BaseResponse<String> sellOrder(@RequestBody SellOrderReq sellOrderReq){
         try{
             Long userId = jwtService.getUserIdx();
-            return new BaseResponse<>(userService.sellOrder(userId, sellOrderReq.getSellingPrice(), sellOrderReq.getQty()));
+            return new BaseResponse<>(userService.sellOrder(userId, sellOrderReq.getTicker(), sellOrderReq.getSellingPrice(), sellOrderReq.getQty(), false));
         } catch (BaseException exception) {
             return new BaseResponse<>(exception.getStatus());
         }

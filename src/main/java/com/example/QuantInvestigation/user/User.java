@@ -1,5 +1,6 @@
 package com.example.QuantInvestigation.user;
 
+import com.example.QuantInvestigation.buy_shares.BuyShares;
 import com.example.QuantInvestigation.error_log.ErrorLog;
 import com.example.QuantInvestigation.user.user_option.UserOption;
 import com.example.QuantInvestigation.utils.BaseTimeEntity;
@@ -43,6 +44,9 @@ public class User extends BaseTimeEntity {
 
     @OneToOne(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     private UserOption userOption; // 매매 옵션과 일대일 매핑
+
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<BuyShares> boards = new ArrayList<>(); // 매수 주식과 일대다 매핑
 
     public User createUser(String id, String password, String appKey, String appSecret, String accessToken, String accountNumber) {
         this.id = id;

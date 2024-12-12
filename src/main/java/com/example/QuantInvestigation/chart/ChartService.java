@@ -2,7 +2,10 @@ package com.example.QuantInvestigation.chart;
 
 import com.example.QuantInvestigation.chart.dto.GetCurrentPriceRes;
 import com.example.QuantInvestigation.chart.dto.GetPeriodPriceRes;
+import com.example.QuantInvestigation.error_log.ErrorLog;
+import com.example.QuantInvestigation.error_log.ErrorLogRepository;
 import com.example.QuantInvestigation.exception.BaseException;
+import com.example.QuantInvestigation.user.User;
 import com.example.QuantInvestigation.user.UserRepository;
 import com.example.QuantInvestigation.utils.UtilService;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -29,6 +32,7 @@ import static com.example.QuantInvestigation.exception.BaseResponseStatus.INVALI
 public class ChartService {
 
     private final UtilService utilService;
+    private final ErrorLogRepository errorLogRepository;
     private final ObjectMapper objectMapper;
 
     @Transactional
@@ -98,6 +102,10 @@ public class ChartService {
 
         } catch (Exception e) {
             System.out.println(e.getMessage());
+            User user = utilService.findByUserIdWithValidation(userId);
+            ErrorLog errorLog = new ErrorLog();
+            errorLog.createHistory(e.getMessage(), user);
+            errorLogRepository.save(errorLog);
             throw new BaseException(INVALID_PARAMS);
         }
     }
@@ -166,6 +174,11 @@ public class ChartService {
             return new GetCurrentPriceRes(last, diff, rate);
 
         } catch (Exception e) {
+            System.out.println(e.getMessage());
+            User user = utilService.findByUserIdWithValidation(userId);
+            ErrorLog errorLog = new ErrorLog();
+            errorLog.createHistory(e.getMessage(), user);
+            errorLogRepository.save(errorLog);
             throw new BaseException(INVALID_PARAMS);
         }
     }

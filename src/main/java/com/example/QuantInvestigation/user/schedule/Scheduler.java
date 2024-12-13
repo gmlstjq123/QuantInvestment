@@ -28,7 +28,8 @@ public class Scheduler {
         log.info("<-------------Token Refresh 작업이 완료되었습니다.------------->");
     }
 
-    @Scheduled(cron = "0 0 19 * * ?") // 매일 새벽 4시에 수행
+//    @Scheduled(cron = "0 0 19 * * ?") // 매일 새벽 4시에 수행
+    @Scheduled(cron = "0 0 20 * * ?") // 매일 새벽 5시에 수행
     public void automaticBuyAndSell() { // 매수, 매도 주문
         log.info("<-------------모든 User에 대해 침몰방지법 매매 작업을 수행합니다.------------->");
         userService.automaticBuyAndSell("CTCX");

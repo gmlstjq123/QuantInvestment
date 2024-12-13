@@ -497,13 +497,13 @@ public class UserService {
                 log.info(msg1.asText());
                 User user = utilService.findByUserIdWithValidation(userId);
                 ErrorLog errorLog = new ErrorLog();
-                errorLog.createHistory("매수에 실패하였습니다. 사유:" + msg1.asText(), user);
+                errorLog.createHistory("매수에 실패하였습니다. 사유: " + msg1.asText(), user);
                 errorLogRepository.save(errorLog);
             } else { // 실패 처리
                 System.out.println(msg1.asText());
                 User user = utilService.findByUserIdWithValidation(userId);
                 ErrorLog errorLog = new ErrorLog();
-                errorLog.createHistory("매수에 실패하였습니다. 사유:" + msg1.asText(), user);
+                errorLog.createHistory("매수에 실패하였습니다. 사유: " + msg1.asText(), user);
                 errorLogRepository.save(errorLog);
             }
 
@@ -584,13 +584,13 @@ public class UserService {
                 log.info(msg1.asText());
                 User user = utilService.findByUserIdWithValidation(userId);
                 ErrorLog errorLog = new ErrorLog();
-                errorLog.createHistory("매도에 실패하였습니다. 사유:" + msg1.asText(), user);
+                errorLog.createHistory("매도에 실패하였습니다. 사유: " + msg1.asText(), user);
                 errorLogRepository.save(errorLog);
             } else { // 실패 처리
                 System.out.println(msg1.asText());
                 User user = utilService.findByUserIdWithValidation(userId);
                 ErrorLog errorLog = new ErrorLog();
-                errorLog.createHistory("매도에 실패하였습니다. 사유:" + msg1.asText(), user);
+                errorLog.createHistory("매도에 실패하였습니다. 사유: " + msg1.asText(), user);
                 errorLogRepository.save(errorLog);
             }
 
@@ -702,6 +702,7 @@ public class UserService {
                         purchasePrice = prevClose;
                     } else {
                         purchasePrice = prevClose * (1 + (6 - T) / 100.0f);
+                        purchasePrice = Math.round(purchasePrice * 10000) / 10000.0f;
                     }
 
                     float buyAmount = totalDeposit / divisions; // 1회차 투자 금액

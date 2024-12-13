@@ -276,6 +276,7 @@ public class UserService {
 
             String responseBody2 = responseEntity2.getBody();
             JsonNode rootNode2 = objectMapper.readTree(responseBody2);
+            JsonNode output2_2 = rootNode2.path("output2");
             JsonNode output3_2 = rootNode2.path("output3");
 
             return new GetTotalBalanceRes(
@@ -284,7 +285,7 @@ public class UserService {
                     Float.parseFloat(output2_1.path("rlzt_erng_rt").asText()),
                     Float.parseFloat(output2_1.path("tot_evlu_pfls_amt").asText()),
                     Float.parseFloat(output2_1.path("tot_pftrt").asText()),
-                    Float.parseFloat(output3_2.path("tot_frcr_cblc_smtl").asText()),
+                    Float.parseFloat(output2_2.get(0).path("frcr_dncl_amt_2").asText()),
                     Float.parseFloat(output3_2.path("tot_asst_amt").asText())
             );
 
@@ -493,8 +494,13 @@ public class UserService {
             if (rtCd.asInt() == 0) { // 성공 처리
                 log.info(msg1.asText());
             } else if (rtCd.asInt() == 7) { // 휴장일
-
+                log.info(msg1.asText());
+                User user = utilService.findByUserIdWithValidation(userId);
+                ErrorLog errorLog = new ErrorLog();
+                errorLog.createHistory("매수에 실패하였습니다. 사유:" + msg1.asText(), user);
+                errorLogRepository.save(errorLog);
             } else { // 실패 처리
+                System.out.println(msg1.asText());
                 User user = utilService.findByUserIdWithValidation(userId);
                 ErrorLog errorLog = new ErrorLog();
                 errorLog.createHistory("매수에 실패하였습니다. 사유:" + msg1.asText(), user);
@@ -576,7 +582,12 @@ public class UserService {
                 log.info(msg1.asText());
             } else if (rtCd.asInt() == 7) { // 휴장일
                 log.info(msg1.asText());
+                User user = utilService.findByUserIdWithValidation(userId);
+                ErrorLog errorLog = new ErrorLog();
+                errorLog.createHistory("매도에 실패하였습니다. 사유:" + msg1.asText(), user);
+                errorLogRepository.save(errorLog);
             } else { // 실패 처리
+                System.out.println(msg1.asText());
                 User user = utilService.findByUserIdWithValidation(userId);
                 ErrorLog errorLog = new ErrorLog();
                 errorLog.createHistory("매도에 실패하였습니다. 사유:" + msg1.asText(), user);
@@ -600,17 +611,23 @@ public class UserService {
 
         List<User> users = userRepository.findAll();
         log.info("<--------- 유저 목록 --------->");
-        log.info(users.toString());
+
+        for (User user : users) {
+            log.info(user.getId());
+        }
 
         for (User user : users) {
             Long userId = user.getUserId();
             UserOption userOption = utilService.findUserOptionByUserIdWithValidation(userId);
-            log.info("<--------- {}님의 옵션 정보 --------->", user.getId());
-            log.info(userOption.toString());
 
             Boolean isRunning = userOption.getIsRunning();
             Integer divisions = userOption.getDivisions();
             Integer T = userOption.getT();
+
+            log.info("<--------- {}님의 옵션 정보 --------->", user.getId());
+            log.info("isRunning: {}", isRunning);
+            log.info("divisions: {}", divisions);
+            log.info("T: {}", T);
 
             // TODO: 매수 로직
             if (isRunning) { // 퀀트 투자 진행 중인 경우에만 매수 진행
@@ -653,6 +670,7 @@ public class UserService {
                 String finalUrl2 = builder2.toUriString();
 
                 prevClose = inquiryClosingPrice(accessToken, appKey, appSecret, ticker, 1);
+                log.info("prevClose: {}", prevClose);
 
                 try {
                     HttpEntity<Map<String, String>> requestEntity2 = new HttpEntity<>(headers);
@@ -665,9 +683,9 @@ public class UserService {
 
                     String responseBody2 = responseEntity2.getBody();
                     JsonNode rootNode2 = objectMapper.readTree(responseBody2);
-                    JsonNode output3_2 = rootNode2.path("output3");
+                    JsonNode output2_2 = rootNode2.path("output2");
+                    totalDeposit = Float.parseFloat(output2_2.get(0).path("frcr_dncl_amt_2").asText());
 
-                    totalDeposit = Float.parseFloat(output3_2.path("tot_frcr_cblc_smtl").asText());
                 } catch (Exception e) {
                     System.out.println(e.getMessage());
                     ErrorLog errorLog = new ErrorLog();
@@ -740,7 +758,9 @@ public class UserService {
             Float close = inquiryClosingPrice(accessToken, appKey, appSecret, ticker, 0);
             log.info("오늘 종가: {}", close);
 
-            float adjustmentFactor = (12.5f - 2 * T) / 100.0f; // 목표 매도가
+            Float adjustmentFactor = (Float) ((12.5f - 2 * (float)T) / 100.0f);
+            log.info("adjustmentFactor: {}", adjustmentFactor);
+
             int beforeCount = buySharesRepository.findBuySharesCountByUserId(userId);
             if (close != null) { // 종가 > 목표 매도가인 경우 해당 buyShares를 DB에서 제거
                 buySharesRepository.deleteSoldShares(userId, close, adjustmentFactor);
@@ -850,10 +870,10 @@ public class UserService {
 
         // 오늘 날짜
         LocalDate today = LocalDate.now();
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMdd");
         String formattedDate = today.format(formatter);
 
-        // 헤더 설정 1 (오늘 종가 조회)
+        // 헤더 설정 (종가 조회)
         HttpHeaders headers1 = new HttpHeaders();
         headers1.setContentType(MediaType.APPLICATION_JSON);
         headers1.add("authorization", "Bearer " + accessToken);
@@ -862,7 +882,7 @@ public class UserService {
         headers1.add("tr_id", trId1);
         headers1.add("User-Agent", "Mozilla/5.0");
 
-        // 파라미터 설정 1 (오늘 종가 조회)
+        // 파라미터 설정 (종가 조회)
         MultiValueMap<String, String> queryParams1 = new LinkedMultiValueMap<>();
         queryParams1.add("AUTH", "");
         queryParams1.add("EXCD", "NAS");

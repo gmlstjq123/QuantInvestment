@@ -430,7 +430,7 @@ public class UserService {
             String formattedTime = buyShares.getTime().toString(); // LocalTime -> String
             float price = buyShares.getPrice();
             int qty = buyShares.getQty();
-            String message = price + " 가격에 " + qty + "주 매수하였습니다.";
+            String message = "$ " + price + " 가격에 " + qty + "주 매수하였습니다.";
 
             getBuySharesResList.add(new GetBuySharesRes(formattedDate, formattedTime, message));
         }

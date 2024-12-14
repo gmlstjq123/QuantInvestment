@@ -18,6 +18,9 @@ public class BuyShares extends BaseTimeEntity {
     private Long buySharesId; // 고유 식별자
 
     @Column(nullable = false)
+    private String ticker; // 티커
+
+    @Column(nullable = false)
     private Integer qty; // 매수 수량
 
     @Column(nullable = false)

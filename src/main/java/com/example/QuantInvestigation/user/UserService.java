@@ -428,9 +428,11 @@ public class UserService {
         for (BuyShares buyShares: buySharesList) {
             String formattedDate = buyShares.getDate().toString(); // LocalDate -> String
             String formattedTime = buyShares.getTime().toString(); // LocalTime -> String
+            String ticker = buyShares.getTicker();
+
             float price = buyShares.getPrice();
             int qty = buyShares.getQty();
-            String message = "$ " + price + " 가격에 " + qty + "주 매수하였습니다.";
+            String message = ticker + "를 $" + price + " 가격에 " + qty + "주 매수하였습니다.";
 
             getBuySharesResList.add(new GetBuySharesRes(formattedDate, formattedTime, message));
         }
@@ -839,6 +841,7 @@ public class UserService {
                         }
 
                         BuyShares buyShares = BuyShares.builder()
+                                .ticker(ticker)
                                 .price(price)
                                 .qty(qty)
                                 .retentionPeriod(retentionPeriod)
@@ -1028,6 +1031,7 @@ public class UserService {
                         }
 
                         BuyShares buyShares = BuyShares.builder()
+                                .ticker(ticker)
                                 .price(price)
                                 .qty(qty)
                                 .retentionPeriod(retentionPeriod)

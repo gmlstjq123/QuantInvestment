@@ -782,7 +782,7 @@ public class UserService {
 
             // 오늘 날짜
             LocalDate today = LocalDate.now();
-            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMdd");
             String formattedDate = today.format(formatter);
 
             // 헤더 설정
@@ -923,6 +923,135 @@ public class UserService {
 
         return close;
 
+    }
+
+    @Transactional
+    public String manualUpdate(ManualUpdateReq manualUpdateReq) {
+
+        String date = manualUpdateReq.getDate();
+        String ticker = manualUpdateReq.getTicker();
+        List<User> users = userRepository.findAll();
+
+        for (User user : users) {
+            UserOption userOption = utilService.findUserOptionByUserIdWithValidation(user.getUserId());
+            Integer T = userOption.getT();
+            Long userId = user.getUserId();
+
+            String accessToken = utilService.findTokenByUserIdWithValidation(userId);
+            String appKey = utilService.findAppKeyByUserIdWithValidation(userId);
+            String appSecret = utilService.findAppSecretByUserIdWithValidation(userId);
+            String accountNumber = utilService.findAccountNumByUserIdWithValidation(userId);
+            String firstPart = accountNumber.substring(0, 8); // 계좌번호 첫 8자리
+            String lastPart = accountNumber.substring(8); // 계좌번호 나머지 2자리
+            String trId = "CTOS4001R";
+
+            /** 1. 매도된 주식을 BuyShares에서 제거 **/
+            // 오늘 종가
+            Float close = inquiryClosingPrice(accessToken, appKey, appSecret, ticker, 0);
+            log.info("오늘 종가: {}", close);
+
+            Float adjustmentFactor = (Float) ((12.5f - 2 * (float)T) / 100.0f);
+            log.info("adjustmentFactor: {}", adjustmentFactor);
+
+            int beforeCount = buySharesRepository.findBuySharesCountByUserId(userId);
+            if (close != null) { // 종가 > 목표 매도가인 경우 해당 buyShares를 DB에서 제거
+                buySharesRepository.deleteSoldShares(userId, close, adjustmentFactor);
+                buySharesRepository.flush();
+            }
+            int afterCount = buySharesRepository.findBuySharesCountByUserId(userId);
+            log.info("매도 주식 수: {}", beforeCount - afterCount);
+
+            /** 2. BuyShares의 보유 가능 일수 갱신 **/
+            List<BuyShares> buySharesList = buySharesRepository.findBuySharesByUserId(userId);
+
+            for (BuyShares buyShares : buySharesList) {
+                buyShares.setRetentionPeriod(buyShares.getRetentionPeriod() - 1); // 보유 가능 일수 1일 차감
+            }
+
+            /** 3. 신규 매수 주식을 BuyShares에 삽입 **/
+            RestTemplate restTemplate = new RestTemplate();
+
+            // 오늘 날짜
+            String formattedDate = date;
+
+            // 헤더 설정
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.add("authorization", "Bearer " + accessToken);
+            headers.add("appkey", appKey);
+            headers.add("appsecret", appSecret);
+            headers.add("tr_id", trId);
+            headers.add("custtype", "P");
+            headers.add("User-Agent", "Mozilla/5.0");
+
+            // 파라미터 설정 (일별 거래 내역 조회)
+            MultiValueMap<String, String> queryParams = new LinkedMultiValueMap<>();
+            queryParams.add("CANO", firstPart);
+            queryParams.add("ACNT_PRDT_CD", lastPart);
+            queryParams.add("ERLM_STRT_DT", formattedDate);
+            queryParams.add("ERLM_END_DT", formattedDate);
+            queryParams.add("OVRS_EXCG_CD", "");
+            queryParams.add("PDNO", "");
+            queryParams.add("SLL_BUY_DVSN_CD", "00");
+            queryParams.add("LOAN_DVSN_CD", "");
+            queryParams.add("CTX_AREA_FK100", "");
+            queryParams.add("CTX_AREA_NK100", "");
+
+            String url = "https://openapi.koreainvestment.com:9443/uapi/overseas-stock/v1/trading/inquire-period-trans";
+            UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(url).queryParams(queryParams);
+            String finalUrl = builder.toUriString();
+
+            try {
+                HttpEntity<Map<String, String>> requestEntity = new HttpEntity<>(headers);
+                ResponseEntity<String> responseEntity = restTemplate.exchange(
+                        finalUrl,  // 호출할 API의 URL
+                        HttpMethod.GET,
+                        requestEntity,
+                        String.class
+                );
+
+                String responseBody = responseEntity.getBody();
+                JsonNode rootNode = objectMapper.readTree(responseBody);
+                JsonNode output1 = rootNode.path("output1");
+
+                // 빈 배열인지 확인
+                if (!output1.isArray() || !output1.isEmpty()) {
+                    for (JsonNode node : output1) {
+                        int qty = Integer.parseInt(node.path("ccld_qty").asText());
+                        float price = Float.parseFloat(node.path("ft_ccld_unpr2").asText());
+                        int retentionPeriod;
+
+                        if (T >= 6) {
+                            retentionPeriod = 12;
+                        } else {
+                            retentionPeriod = 30 - (3 * T);
+                        }
+
+                        BuyShares buyShares = BuyShares.builder()
+                                .price(price)
+                                .qty(qty)
+                                .retentionPeriod(retentionPeriod)
+                                .user(user)
+                                .build();
+
+                        buySharesRepository.save(buyShares);
+                        buySharesRepository.flush();
+                    }
+                }
+
+            } catch (Exception e) {
+                System.out.println(e.getMessage());
+                ErrorLog errorLog = new ErrorLog();
+                errorLog.createHistory(e.getMessage(), user);
+                errorLogRepository.save(errorLog);
+                throw new BaseException(INVALID_PARAMS);
+            }
+
+            /** 4. T 값 갱신 **/
+            userOption.setT(Math.min(buySharesRepository.findBuySharesCountByUserId(userId), 6));
+
+            return "갱신이 완료되었습니다.";
+        }
     }
 
 }

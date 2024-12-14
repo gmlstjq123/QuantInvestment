@@ -141,4 +141,16 @@ public class UserController {
         }
     }
 
+    /**
+     * BuyShares 수동 갱신
+     */
+    @PostMapping("/manual-update")
+    public BaseResponse<String> manualUpdate(@RequestBody ManualUpdateReq manualUpdateReq){
+        try{
+            return new BaseResponse<>(userService.manualUpdate(manualUpdateReq));
+        } catch (BaseException exception) {
+            return new BaseResponse<>(exception.getStatus());
+        }
+    }
+
 }

@@ -1050,8 +1050,10 @@ public class UserService {
             /** 4. T 값 갱신 **/
             userOption.setT(Math.min(buySharesRepository.findBuySharesCountByUserId(userId), 6));
 
-            return "갱신이 완료되었습니다.";
         }
+
+        return "갱신이 완료되었습니다.";
+
     }
 
 }

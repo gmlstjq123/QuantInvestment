@@ -707,7 +707,7 @@ public class UserService {
                         purchasePrice = Math.round(purchasePrice * 10000) / 10000.0f;
                     }
 
-                    float buyAmount = totalDeposit / divisions; // 1회차 투자 금액
+                    float buyAmount = totalDeposit / (divisions - T); // 1회차 투자 금액 (복리 적용)
                     int qty = (int) (buyAmount / purchasePrice);
 
                     log.info("총 예수금: {}", totalDeposit);

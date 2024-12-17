@@ -432,7 +432,7 @@ public class UserService {
 
             float price = buyShares.getPrice();
             int qty = buyShares.getQty();
-            String message = ticker + "를 $" + price + " 가격에 " + qty + "주 매수하였습니다.";
+            String message = ticker + "를 " + price + " $에 " + qty + "주 매수하였습니다.";
 
             getBuySharesResList.add(new GetBuySharesRes(formattedDate, formattedTime, message));
         }

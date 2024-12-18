@@ -730,8 +730,7 @@ public class UserService {
                 Integer qty = buyShares.getQty();
                 Integer retentionPeriod = buyShares.getRetentionPeriod();
                 boolean isCutOff = (retentionPeriod == 0);
-
-                float sellPrice = price * (1 + (12.5f - T) / 100.0f);
+                float sellPrice = price * (1 + (12.5f - 2 * (float)T) / 100.0f);
                 sellPrice = Math.round(sellPrice * 10000) / 10000.0f;
                 sellOrder(userId, ticker, String.valueOf(sellPrice), qty, isCutOff);
             }

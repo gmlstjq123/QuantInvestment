@@ -21,4 +21,8 @@ public interface BuySharesRepository extends JpaRepository<BuyShares, Long> {
     @Query("delete from BuyShares b where b.user.userId = :userId and :close >= b.price * (1.0 + :adjustmentFactor)")
     void deleteSoldShares(@Param("userId") Long userId, @Param("close") Float close, @Param("adjustmentFactor") Float adjustmentFactor);
 
+    @Modifying
+    @Query("update BuyShares b set b.retentionPeriod = :retentionPeriod where b.user.userId = :userId and b.price <= :minPrice")
+    void updateRetentionPeriod(@Param("userId") Long userId, @Param("retentionPeriod") Integer retentionPeriod, @Param("minPrice") Float minPrice);
+
 }

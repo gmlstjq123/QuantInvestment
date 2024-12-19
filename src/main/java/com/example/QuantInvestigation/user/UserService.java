@@ -625,6 +625,8 @@ public class UserService {
             Boolean isRunning = userOption.getIsRunning();
             Integer divisions = userOption.getDivisions();
             Integer T = userOption.getT();
+            float purchasePrice = 0F; // 매수가 계산
+            int buyQty = 0; // 매수 수량
 
             log.info("<--------- {}님의 옵션 정보 --------->", user.getId());
             log.info("isRunning: {}", isRunning);
@@ -698,7 +700,6 @@ public class UserService {
 
                 /** 2. 매수가 계산 & 매수 주문 **/
                 if (prevClose != null) {
-                    float purchasePrice; // 매수가 계산
 
                     if (T >= 6) {
                         purchasePrice = prevClose;
@@ -708,15 +709,14 @@ public class UserService {
                     }
 
                     float buyAmount = totalDeposit / (divisions - T); // 1회차 투자 금액 (복리 적용)
-                    int qty = (int) (buyAmount / purchasePrice);
+                    buyQty = (int) (buyAmount / purchasePrice);
 
                     log.info("총 예수금: {}", totalDeposit);
                     log.info("전일 종가: {}", prevClose);
                     log.info("매수가: {}", purchasePrice);
                     log.info("1회차 투자 금액: {}", buyAmount);
-                    log.info("매수 수량: {}", qty);
+                    log.info("매수 수량: {}", buyQty);
 
-                    buyOrder(userId, ticker, String.valueOf(purchasePrice), qty);
                 }
             }
 
@@ -725,14 +725,33 @@ public class UserService {
             log.info("<--------- {}님의 보유 주식 정보 --------->", user.getId());
             log.info(buySharesList.toString());
 
+            boolean isCrossTrading = false;
+
+            for (BuyShares buyShares : buySharesList) { // 자전거래 발생 여부 감지
+                Float price = buyShares.getPrice();
+                float sellPrice = price * (1 + (12.5f - 2 * (float)T) / 100.0f);
+                sellPrice = Math.round(sellPrice * 10000) / 10000.0f;
+
+                if (sellPrice <= purchasePrice) { // 자전거래 발생
+                    isCrossTrading = true;
+                    break;
+                }
+            }
+
             for (BuyShares buyShares : buySharesList) {
                 Float price = buyShares.getPrice();
-                Integer qty = buyShares.getQty();
+                Integer sellQty = buyShares.getQty();
                 Integer retentionPeriod = buyShares.getRetentionPeriod();
                 boolean isCutOff = (retentionPeriod == 0);
                 float sellPrice = price * (1 + (12.5f - 2 * (float)T) / 100.0f);
                 sellPrice = Math.round(sellPrice * 10000) / 10000.0f;
-                sellOrder(userId, ticker, String.valueOf(sellPrice), qty, isCutOff);
+
+                if (isCrossTrading) { // 자전거래 -> 매수 X, 매도만 수행
+                    sellOrder(userId, ticker, String.valueOf(sellPrice), sellQty, isCutOff);
+                } else { // 자전거래 발생 X -> 정상적으로 매수 & 매도 수행
+                    buyOrder(userId, ticker, String.valueOf(purchasePrice), buyQty);
+                    sellOrder(userId, ticker, String.valueOf(sellPrice), sellQty, isCutOff);
+                }
             }
 
         }

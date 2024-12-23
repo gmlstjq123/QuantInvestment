@@ -726,15 +726,16 @@ public class UserService {
             log.info(buySharesList.toString());
 
             boolean isCrossTrading = false;
+            float minSellPrice = Float.MAX_VALUE;
 
             for (BuyShares buyShares : buySharesList) { // 자전거래 발생 여부 감지
                 Float price = buyShares.getPrice();
                 float sellPrice = price * (1 + (12.5f - 2 * (float)T) / 100.0f);
                 sellPrice = Math.round(sellPrice * 10000) / 10000.0f;
+                minSellPrice = Math.min(sellPrice, minSellPrice);
 
                 if (sellPrice <= purchasePrice) { // 자전거래 발생
                     isCrossTrading = true;
-                    break;
                 }
             }
 
@@ -742,16 +743,18 @@ public class UserService {
                 Float price = buyShares.getPrice();
                 Integer sellQty = buyShares.getQty();
                 Integer retentionPeriod = buyShares.getRetentionPeriod();
+
                 boolean isCutOff = (retentionPeriod == 0);
                 float sellPrice = price * (1 + (12.5f - 2 * (float)T) / 100.0f);
-                sellPrice = Math.round(sellPrice * 10000) / 10000.0f;
 
-                if (isCrossTrading) { // 자전거래 -> 매수 X, 매도만 수행
-                    sellOrder(userId, ticker, String.valueOf(sellPrice), sellQty, isCutOff);
-                } else { // 자전거래 발생 X -> 정상적으로 매수 & 매도 수행
-                    buyOrder(userId, ticker, String.valueOf(purchasePrice), buyQty);
-                    sellOrder(userId, ticker, String.valueOf(sellPrice), sellQty, isCutOff);
-                }
+                sellPrice = Math.round(sellPrice * 10000) / 10000.0f;
+                sellOrder(userId, ticker, String.valueOf(sellPrice), sellQty, isCutOff);
+            }
+
+            if (isCrossTrading) { // 자전거래 -> (최소 매도가 - 0.0001)$에 매수
+                buyOrder(userId, ticker, String.valueOf(minSellPrice - 0.0001f), buyQty);
+            } else {
+                buyOrder(userId, ticker, String.valueOf(purchasePrice), buyQty);
             }
 
         }

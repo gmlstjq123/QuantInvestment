@@ -20,7 +20,7 @@ public class Scheduler {
     private final UserService userService;
     private final UtilService utilService;
 
-    @Scheduled(cron = "0 0 3 ? * TUE-SAT", zone = "Asia/Seoul") // 매일 새벽 3시에 수행
+    @Scheduled(cron = "0 0 3 * * ?", zone = "Asia/Seoul") // 매일 새벽 3시 실행
     public void refreshTokens() { // 유저의 OAuth 토큰 Refresh
         log.info("<-------------모든 Token의 Refresh 작업을 수행합니다.------------->");
         List<RefreshTokenReq> refreshTokenReqList = utilService.findRefreshTokenReqAllWithValidation();

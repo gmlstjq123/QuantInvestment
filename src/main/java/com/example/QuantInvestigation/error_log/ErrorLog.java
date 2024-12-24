@@ -24,7 +24,7 @@ public class ErrorLog extends BaseTimeEntity {
     @JoinColumn(name = "user_id")
     private User user;
 
-    public ErrorLog createHistory(String message, User user) {
+    public ErrorLog createErrorLog(String message, User user) {
         this.message = message;
         this.user= user;
         return this;

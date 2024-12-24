@@ -2,10 +2,11 @@ package com.example.QuantInvestigation.user;
 
 import com.example.QuantInvestigation.buy_shares.BuyShares;
 import com.example.QuantInvestigation.buy_shares.BuySharesRepository;
-import com.example.QuantInvestigation.chart.dto.GetPeriodPriceRes;
 import com.example.QuantInvestigation.exception.BaseException;
 import com.example.QuantInvestigation.error_log.ErrorLog;
 import com.example.QuantInvestigation.error_log.ErrorLogRepository;
+import com.example.QuantInvestigation.history.History;
+import com.example.QuantInvestigation.history.HistoryRepository;
 import com.example.QuantInvestigation.token.JwtProvider;
 import com.example.QuantInvestigation.token.dto.JwtResponseDTO;
 import com.example.QuantInvestigation.user.dto.*;
@@ -45,6 +46,7 @@ public class UserService {
     private final ErrorLogRepository errorLogRepository;
     private final UserOptionRepository userOptionRepository;
     private final BuySharesRepository buySharesRepository;
+    private final HistoryRepository historyRepository;
 
     @Transactional
     public String joinUser(PostJoinReq postJoinReq) throws BaseException {
@@ -189,7 +191,7 @@ public class UserService {
                 System.out.println(e.getMessage());
                 User user = utilService.findByUserIdWithValidation(userId);
                 ErrorLog errorLog = new ErrorLog();
-                errorLog.createHistory(e.getMessage(), user);
+                errorLog.createErrorLog(e.getMessage(), user);
                 errorLogRepository.save(errorLog);
                 throw new BaseException(INVALID_AUTH_INPUT);
             }
@@ -293,7 +295,7 @@ public class UserService {
             System.out.println(e.getMessage());
             User user = utilService.findByUserIdWithValidation(userId);
             ErrorLog errorLog = new ErrorLog();
-            errorLog.createHistory(e.getMessage(), user);
+            errorLog.createErrorLog(e.getMessage(), user);
             errorLogRepository.save(errorLog);
             throw new BaseException(INVALID_PARAMS);
         }
@@ -378,7 +380,7 @@ public class UserService {
             System.out.println(e.getMessage());
             User user = utilService.findByUserIdWithValidation(userId);
             ErrorLog errorLog = new ErrorLog();
-            errorLog.createHistory(e.getMessage(), user);
+            errorLog.createErrorLog(e.getMessage(), user);
             errorLogRepository.save(errorLog);
             throw new BaseException(INVALID_PARAMS);
         }
@@ -499,13 +501,13 @@ public class UserService {
                 log.info(msg1.asText());
                 User user = utilService.findByUserIdWithValidation(userId);
                 ErrorLog errorLog = new ErrorLog();
-                errorLog.createHistory("매수에 실패하였습니다. 사유: " + msg1.asText(), user);
+                errorLog.createErrorLog("매수에 실패하였습니다. 사유: " + msg1.asText(), user);
                 errorLogRepository.save(errorLog);
             } else { // 실패 처리
                 System.out.println(msg1.asText());
                 User user = utilService.findByUserIdWithValidation(userId);
                 ErrorLog errorLog = new ErrorLog();
-                errorLog.createHistory("매수에 실패하였습니다. 사유: " + msg1.asText(), user);
+                errorLog.createErrorLog("매수에 실패하였습니다. 사유: " + msg1.asText(), user);
                 errorLogRepository.save(errorLog);
             }
 
@@ -515,7 +517,7 @@ public class UserService {
             System.out.println(e.getMessage());
             User user = utilService.findByUserIdWithValidation(userId);
             ErrorLog errorLog = new ErrorLog();
-            errorLog.createHistory(e.getMessage(), user);
+            errorLog.createErrorLog(e.getMessage(), user);
             errorLogRepository.save(errorLog);
             throw new BaseException(INVALID_PARAMS);
         }
@@ -586,13 +588,13 @@ public class UserService {
                 log.info(msg1.asText());
                 User user = utilService.findByUserIdWithValidation(userId);
                 ErrorLog errorLog = new ErrorLog();
-                errorLog.createHistory("매도에 실패하였습니다. 사유: " + msg1.asText(), user);
+                errorLog.createErrorLog("매도에 실패하였습니다. 사유: " + msg1.asText(), user);
                 errorLogRepository.save(errorLog);
             } else { // 실패 처리
                 System.out.println(msg1.asText());
                 User user = utilService.findByUserIdWithValidation(userId);
                 ErrorLog errorLog = new ErrorLog();
-                errorLog.createHistory("매도에 실패하였습니다. 사유: " + msg1.asText(), user);
+                errorLog.createErrorLog("매도에 실패하였습니다. 사유: " + msg1.asText(), user);
                 errorLogRepository.save(errorLog);
             }
 
@@ -602,7 +604,7 @@ public class UserService {
             System.out.println(e.getMessage());
             User user = utilService.findByUserIdWithValidation(userId);
             ErrorLog errorLog = new ErrorLog();
-            errorLog.createHistory(e.getMessage(), user);
+            errorLog.createErrorLog(e.getMessage(), user);
             errorLogRepository.save(errorLog);
             throw new BaseException(INVALID_PARAMS);
         }
@@ -616,6 +618,8 @@ public class UserService {
 
         for (User user : users) {
             log.info(user.getId());
+            History history = new History();
+            history.createHistory("User ID: " + user.getId(), user);
         }
 
         for (User user : users) {
@@ -632,6 +636,19 @@ public class UserService {
             log.info("isRunning: {}", isRunning);
             log.info("divisions: {}", divisions);
             log.info("T: {}", T);
+
+            History history1 = new History();
+            history1.createHistory("<--------- " + user.getId() + "님의 옵션 정보 --------->", user);
+            historyRepository.save(history1);
+            History history2 = new History();
+            history2.createHistory("isRunning: " + isRunning, user);
+            historyRepository.save(history2);
+            History history3 = new History();
+            history3.createHistory("divisions: " + divisions, user);
+            historyRepository.save(history3);
+            History history4 = new History();
+            history4.createHistory("T: " + T, user);
+            historyRepository.save(history4);
 
             // TODO: 매수 로직
             if (isRunning) { // 퀀트 투자 진행 중인 경우에만 매수 진행
@@ -674,7 +691,6 @@ public class UserService {
                 String finalUrl2 = builder2.toUriString();
 
                 prevClose = inquiryClosingPrice(accessToken, appKey, appSecret, ticker, 1);
-                log.info("prevClose: {}", prevClose);
 
                 try {
                     HttpEntity<Map<String, String>> requestEntity2 = new HttpEntity<>(headers);
@@ -693,7 +709,7 @@ public class UserService {
                 } catch (Exception e) {
                     System.out.println(e.getMessage());
                     ErrorLog errorLog = new ErrorLog();
-                    errorLog.createHistory(e.getMessage(), user);
+                    errorLog.createErrorLog(e.getMessage(), user);
                     errorLogRepository.save(errorLog);
                     throw new BaseException(INVALID_PARAMS);
                 }
@@ -717,6 +733,21 @@ public class UserService {
                     log.info("1회차 투자 금액: {}", buyAmount);
                     log.info("매수 수량: {}", buyQty);
 
+                    History history5 = new History();
+                    history5.createHistory("총 예수금: " + totalDeposit, user);
+                    historyRepository.save(history5);
+                    History history6 = new History();
+                    history6.createHistory("전일 종가: " + prevClose, user);
+                    historyRepository.save(history6);
+                    History history7 = new History();
+                    history7.createHistory("매수가: " + purchasePrice, user);
+                    historyRepository.save(history7);
+                    History history8 = new History();
+                    history8.createHistory("1회차 투자 금액: " + buyAmount, user);
+                    historyRepository.save(history8);
+                    History history9 = new History();
+                    history9.createHistory("매수 수량: " + buyQty, user);
+                    historyRepository.save(history9);
                 }
             }
 
@@ -739,6 +770,14 @@ public class UserService {
                 }
             }
 
+            History history10 = new History();
+            history10.createHistory("자전거래 여부: " + isCrossTrading, user);
+            historyRepository.save(history10);
+
+            History history11 = new History();
+            history11.createHistory("최소 매도가: " + minSellPrice, user);
+            historyRepository.save(history11);
+
             for (BuyShares buyShares : buySharesList) {
                 Float price = buyShares.getPrice();
                 Integer sellQty = buyShares.getQty();
@@ -748,13 +787,26 @@ public class UserService {
                 float sellPrice = price * (1 + (12.5f - 2 * (float)T) / 100.0f);
 
                 sellPrice = Math.round(sellPrice * 10000) / 10000.0f;
-                sellOrder(userId, ticker, String.valueOf(sellPrice), sellQty, isCutOff);
+                History history12 = new History();
+                history12.createHistory("손절매 여부: " + isCutOff, user);
+                historyRepository.save(history12);
+
+                // 자전거래 O -> 매수 X 대신 최소 매도가에 매도도 X
+                // 자전거래 X -> 정상적으로 매수/매도
+                if (!isCrossTrading || sellPrice > minSellPrice) {
+                    sellOrder(userId, ticker, String.valueOf(sellPrice), sellQty, isCutOff);
+                    History history13 = new History();
+                    history13.createHistory(sellPrice + "$에 " + sellQty + "주 매도 주문을 넣었습니다.", user);
+                    historyRepository.save(history13);
+                }
+
             }
 
-            if (isCrossTrading) { // 자전거래 -> (최소 매도가 - 0.0001)$에 매수
-                buyOrder(userId, ticker, String.valueOf(minSellPrice - 0.0001f), buyQty);
-            } else {
+            if (!isCrossTrading) { // 자전거래가 아닐 경우에만 매수 주문
                 buyOrder(userId, ticker, String.valueOf(purchasePrice), buyQty);
+                History history14 = new History();
+                history14.createHistory(purchasePrice + "$에 " + buyQty + "주 매수 주문을 넣었습니다.", user);
+                historyRepository.save(history14);
             }
 
         }
@@ -783,8 +835,16 @@ public class UserService {
             Float close = inquiryClosingPrice(accessToken, appKey, appSecret, ticker, 0);
             log.info("오늘 종가: {}", close);
 
+            History history1 = new History();
+            history1.createHistory("금일 종가: " + close, user);
+            historyRepository.save(history1);
+
             Float adjustmentFactor = (Float) ((12.5f - 2 * (float)T) / 100.0f);
             log.info("adjustmentFactor: {}", adjustmentFactor);
+
+            History history2 = new History();
+            history2.createHistory("매도가 조정 Factor: " + adjustmentFactor, user);
+            historyRepository.save(history2);
 
             int beforeCount = buySharesRepository.findBuySharesCountByUserId(userId);
             if (close != null) { // 종가 > 목표 매도가인 경우 해당 buyShares를 DB에서 제거
@@ -793,12 +853,27 @@ public class UserService {
             }
             int afterCount = buySharesRepository.findBuySharesCountByUserId(userId);
             log.info("매도 주식 수: {}", beforeCount - afterCount);
+            History history3 = new History();
+            history3.createHistory("매도 주식 수: " + (beforeCount - afterCount), user);
+            historyRepository.save(history3);
 
             /** 2. BuyShares의 보유 가능 일수 갱신 **/
             List<BuyShares> buySharesList = buySharesRepository.findBuySharesByUserId(userId);
 
+            History history4 = new History();
+            history4.createHistory("<-----보유 가능 일수 변화----->", user);
+            historyRepository.save(history4);
+
             for (BuyShares buyShares : buySharesList) {
+                History history5 = new History();
+                history5.createHistory(buyShares.getRetentionPeriod().toString(), user);
+                historyRepository.save(history5);
+
                 buyShares.setRetentionPeriod(buyShares.getRetentionPeriod() - 1); // 보유 가능 일수 1일 차감
+
+                History history6 = new History();
+                history6.createHistory(buyShares.getRetentionPeriod().toString(), user);
+                historyRepository.save(history6);
             }
 
             /** 3. 신규 매수 주식을 BuyShares에 삽입 **/
@@ -878,7 +953,7 @@ public class UserService {
             } catch (Exception e) {
                 System.out.println(e.getMessage());
                 ErrorLog errorLog = new ErrorLog();
-                errorLog.createHistory(e.getMessage(), user);
+                errorLog.createErrorLog(e.getMessage(), user);
                 errorLogRepository.save(errorLog);
                 throw new BaseException(INVALID_PARAMS);
             }
@@ -886,6 +961,9 @@ public class UserService {
             /** 4. T 값 갱신 **/
             userOption.setT(Math.min(buySharesRepository.findBuySharesCountByUserId(userId), 6));
 
+            History history7 = new History();
+            history7.createHistory("T 값 갱신: " + userOption.getT(), user);
+            historyRepository.save(history7);
         }
     }
 
@@ -1068,7 +1146,7 @@ public class UserService {
             } catch (Exception e) {
                 System.out.println(e.getMessage());
                 ErrorLog errorLog = new ErrorLog();
-                errorLog.createHistory(e.getMessage(), user);
+                errorLog.createErrorLog(e.getMessage(), user);
                 errorLogRepository.save(errorLog);
                 throw new BaseException(INVALID_PARAMS);
             }
